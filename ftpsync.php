@@ -1,7 +1,7 @@
 <?php
 /*
 ftpsync
-ver 0.2.3
+ver 0.2.4
 by rek@rek.me
 
 You can use this script under the GPLv3 license.
@@ -237,21 +237,35 @@ function upload($ftp, $remoteRoot, $localRoot, $uploadFiles) {
 		echo "OK\n";
 	}
 	foreach($uploadFiles as $f) {
-		echo "Uploading $f...";
-		$d = dirname($f);
-		if(!@ftp_chdir($ftp, $remoteRoot.$d))  { // if cannot chdir, try to create so
-			ftp_chdir($ftp, $remoteRoot);
-			$dir = strtok($d, '/\\');
-			do {
-				if($dir == '') continue;
-				@ftp_mkdir($ftp, $dir);
-				ftp_chdir($ftp, $dir);
-			} while($dir = strtok('/\\'));
-		}
-		if(ftp_put($ftp, basename($f), $localRoot.$f, FTP_BINARY)) {
-			echo "OK\n";
-		} else {
-			echo "Failed!Skip it.\n";
+		if(empty($f)) continue;
+		if(is_file($localRoot.$f)) {
+			echo "Uploading $f...";
+			$d = dirname($f);
+			if(!@ftp_chdir($ftp, $remoteRoot.$d))  { // if cannot chdir, try to create so
+				ftp_chdir($ftp, $remoteRoot);
+				$dir = strtok($d, '/\\');
+				do {
+					if($dir == '') continue;
+					@ftp_mkdir($ftp, $dir);
+					ftp_chdir($ftp, $dir);
+				} while($dir = strtok('/\\'));
+			}
+			if(ftp_put($ftp, basename($f), $localRoot.$f, FTP_BINARY)) {
+				echo "OK\n";
+			} else {
+				echo "Failed!Skip it.\n";
+			}
+		} else if(is_dir($localRoot.$f)) {
+			echo "Making dir $f ";
+			if(!@ftp_chdir($ftp, $remoteRoot.$f)) {
+				if(@ftp_mkdir($ftp, $remoteRoot.$f)) {
+					echo "OK\n";
+				} else {
+					echo "Failed\n";
+				}
+			} else {
+				echo "Exist!Skip it.\n";
+			}
 		}
 	}
 }
@@ -295,6 +309,7 @@ function scanRemote($ftp, $dir, $rootLength=null) {
 			$fileName = substr($n, $rootLength);
 			$files[$fileName] = ftp_mdtm($ftp, $n);
 		} else if($isDir){
+			$files[$fileName] = ftp_mdtm($ftp, $n);
 			$subDirFiles = scanRemote($ftp, $n, $rootLength);
 			$files = array_merge($files, $subDirFiles);
 		}
@@ -318,12 +333,10 @@ function scanLocal($dir, $rootLength=null) {
 	foreach($curDirList as $n) {
 		if($n[0] == '.') continue; // jump the hidden directory and file
 		$n = $dir.$n;
-		if(is_file($n)) {
-			$fileName = substr($n, $rootLength);
-			$files[$fileName] = filemtime($n);
-		} else if(is_dir($n)){
-			$subDirFiles = scanLocal($n, $rootLength);
-			$files = array_merge($files, $subDirFiles);
+		$fileName = substr($n, $rootLength);
+		$files[$fileName] = filemtime($n);
+		if(is_dir($n)){
+			$files = array_merge($files, scanLocal($n, $rootLength));
 		}
 	}
 	return $files;
@@ -336,8 +349,8 @@ function clearPath($p) {
 	return $p;
 }
 function echoUsage() {
-echo
-"Usage: ftpsync [OPTIONS] [FLAG] [file]
+echo <<<USAGE
+Usage: ftpsync [OPTIONS] [FLAG] [file]
 Options could be:
 -u, --user              FTP login user Default is anonymous
 -h, --host              FTP host Default is localhost
@@ -350,7 +363,7 @@ Flag is either:
 -t, --active            Turn off PASV mode
 -i, --sync-incremental  Upload files that newer then last upload
 -a, --sync-whole-site   Compare FTP files and upload newer file
-";
+USAGE;
 exit();
 }
 ?>
