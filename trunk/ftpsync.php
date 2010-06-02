@@ -1,19 +1,20 @@
 <?php
 /*
 ftpsync
-ver 0.2.4
+ver 0.2.5
 by rek@rek.me
 
 You can use this script under the GPLv3 license.
 The full-text of GPLv3 is here http://www.gnu.org/licenses/gpl-3.0.txt
 */
-$ftpUser = 'anonymous';
-$ftpHost = 'localhost';
-$ftpPass = 'abc@example.com';
-$ftpPort = 21;
-$activeMode = false;
-$remoteRoot = '/';
-$localRoot = getcwd();
+$ftpUser      = 'anonymous';
+$ftpHost      = 'localhost';
+$ftpPass      = 'abc@example.com';
+$ftpPort      = 21;
+$activeMode   = false;
+$remoteRoot   = '/';
+$localRoot    = getcwd();
+$chmod        = false;
 
 if($argc <= 1) {
 	echoUsage();
@@ -51,6 +52,12 @@ for($i = 1; $i < $argc; $i++) {
 				break;
 			case '-a': case '--sync-whole-site':
 				$syncMode = 'a';
+				break;
+			case '-m': case '--chmod':
+				$chmod = true;
+				break;
+			case '--help':
+				echoUsage();
 				break;
 			default:
 				echoUsage();
@@ -222,6 +229,7 @@ function getFtpConnection($host, $port, $user, $pass, $active) {
 	return $ftp;
 }
 function upload($ftp, $remoteRoot, $localRoot, $uploadFiles) {
+	global $chmod;
 	if(count($uploadFiles) == 0) {
 		echo "No files need to upload.\n";
 		return;
@@ -266,6 +274,11 @@ function upload($ftp, $remoteRoot, $localRoot, $uploadFiles) {
 			} else {
 				echo "Exist!Skip it.\n";
 			}
+		}
+		if($chmod) {
+			$mod = fileperms($localRoot.$f)&0777;
+			echo "chmod ".decoct($mod)." for $f\n";
+			ftp_chmod($ftp, $mod, $remoteRoot.$f);
 		}
 	}
 }
@@ -351,7 +364,7 @@ function clearPath($p) {
 function echoUsage() {
 echo <<<USAGE
 Usage: ftpsync [OPTIONS] [FLAG] [file]
-Options could be:
+Options:
 -u, --user              FTP login user Default is anonymous
 -h, --host              FTP host Default is localhost
 -o, --port              FTP port Default is 21
@@ -359,7 +372,10 @@ Options could be:
 -c, --chdir             Change to such remote dir when start to sync
 -r, --root              Local site root Default is current working directory
 -f, --sync-file         Upload a single file
-Flag is either:
+Flags:
+-m, --chmod             Change remote file mode as local
+--help                  Show this usage
+Only one of flags below can be used in a time
 -t, --active            Turn off PASV mode
 -i, --sync-incremental  Upload files that newer then last upload
 -a, --sync-whole-site   Compare FTP files and upload newer file
